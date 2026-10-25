@@ -30,6 +30,19 @@ async function loadProduct() {
   renderProduct();
   document.getElementById("loadingBox").style.display = "none";
   document.getElementById("productWrap").style.display = "block";
+  renderRelated();
+}
+  const id = getQueryParam("id");
+  if (!id) return;
+  const snap = await db.collection("products").doc(id).get();
+  if (!snap.exists) {
+    document.getElementById("loadingBox").innerText = "পণ্য পাওয়া যায়নি";
+    return;
+  }
+  product = { id: snap.id, ...snap.data() };
+  renderProduct();
+  document.getElementById("loadingBox").style.display = "none";
+  document.getElementById("productWrap").style.display = "block";
 }
 
 function renderProduct() {
