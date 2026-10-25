@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>অর্ডার ট্র্যাক - Maumin Fashion</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header style="padding:14px 12px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #eee;">
+  <a href="index.html" style="font-size:20px; text-decoration:none;">← হোম</a>
+  <h1 style="margin:0; font-size:18px;">অর্ডার ট্র্যাক</h1>
+</header>
+
+<div style="max-width:480px; margin:20px auto; padding:0 16px;">
+  <label style="font-weight:bold;">অর্ডার আইডি লিখুন</label>
+  <input id="trackInput" type="text" placeholder="MM-..." style="width:100%; padding:12px; font-size:16px; margin:8px 0; border-radius:8px; border:1px solid #ccc; box-sizing:border-box;">
+  <button onclick="checkTrack()" style="width:100%; padding:14px; background:#111; color:#fff; border:none; border-radius:8px; font-size:16px; font-weight:bold;">ট্র্যাক করুন</button>
+
+  <div id="trackResult" style="margin-top:24px; display:none;">
+    <h2 style="font-size:18px;">আপনার অর্ডার</h2>
+    <div id="statusBadge" style="display:inline-block; padding:8px 16px; border-radius:20px; color:#fff; font-weight:bold; margin-bottom:12px;"></div>
+    <div style="background:#f8f9fa; padding:16px; border-radius:12px; line-height:1.8;">
+      <p><strong>অর্ডার আইডি:</strong> <span id="resId"></span></p>
+      <p><strong>পণ্য:</strong> <span id="resTitle"></span></p>
+      <p><strong>কাস্টমার:</strong> <span id="resName"></span></p>
+      <p><strong>ঠিকানা:</strong> <span id="resAddr"></span></p>
+      <p><strong>পেমেন্ট:</strong> <span id="resPay"></span></p>
+      <p><strong>প্রোডাক্ট দাম:</strong> ৳<span id="resPrice"></span></p>
+      <p><strong>ডেলিভারি:</strong> ৳<span id="resDel"></span></p>
+      <p style="font-weight:bold; color:#111;"><strong>মোট:</strong> ৳<span id="resTotal"></span></p>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { db } from "./js/firebase-config.js";
+
+window.checkTrack = async () => {
+  const val = document.getElementById("trackInput").value.trim();
+  if (!val) return alert("অর্ডার আইডি লিখুন");
+  document.getElementById("trackResult").style.display = "none";
+  try {
+    const snap = await db.collection("orders").where("orderId","==",val).limit(1).get();
+    if (snap.empty) {
+      alert("এই আইডিতে কোনো অর্ডার পাওয়া যায়নি।");
+      return;
+    }
+    const d = snap.docs[0].data();
+    document.getElementById("resId").innerText = d.orderId || "";
+    document.getElementById("resTitle").innerText = d.productTitle || "";
+    document.getElementById("resName").innerText = d.customerName || "";
+    document.getElementById("resAddr").innerText = d.address || (d.village ? d.village + ", " + d.thana + ", " + d.district : "");
+    document.getElementById("resPay").innerText = d.paymentMethod === "COD" ? "ক্যাশ অন ডেলিভারি" : "বিকাশ";
+    document.getElementById("resPrice").innerText = d.price || "0";
+    document.getElementById("resDel").innerText = d.deliveryCharge || "0";
+    document.getElementById("resTotal").innerText = (parseInt(d.price||0) + parseInt(d.deliveryCharge||0));
+
+    const stat = d.status || "pending";
+    const badge = document.getElementById("statusBadge");
+    badge.innerText = stat === "pending" ? "বিচারাধীন" : stat === "processing" ? "প্রসেসিং" : stat === "delivery" ? "ডেলিভারি হচ্ছে" : stat;
+    badge.style.background = stat === "pending" ? "#e0a800" : stat === "processing" ? "#007bff" : stat === "delivery" ? "#28a745" : "#777";
+    document.getElementById("trackResult").style.display = "block";
+  } catch (e) {
+    alert("ত্রুটি: " + e.message);
+  }
+};
+</script>
+
+</body>
+        </html>
