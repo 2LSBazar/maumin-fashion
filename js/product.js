@@ -55,11 +55,53 @@ function renderProduct() {
   renderPaymentChoice();
 }
 
-function renderSlider() {
-  const track = document.getElementById("sliderTrack");
-  const dots = document.getElementById("sliderDots");
-  track.innerHTML = "";
-  dots.innerHTML = "";
+async function renderRelated() {
+  const grid = document.getElementById("relatedGrid");
+  grid.innerHTML = "লোড হচ্ছে...";
+  try {
+    const allSnap = await db.collection("products").get();
+    const myCats = product.categories && product.categories.length > 0
+      ? product.categories
+      : (product.category ? [product.category] : []);
+
+    const related = [];
+    allSnap.forEach(doc => {
+      if (doc.id === product.id) return;
+      const d = doc.data();
+      const theirCats = d.categories && d.categories.length > 0
+        ? d.categories
+        : (d.category ? [d.category] : []);
+      const match = theirCats.some(c => myCats.includes(c));
+      if (match) related.push({ id: doc.id, ...d });
+    });
+
+    if (related.length === 0) {
+      grid.innerHTML = "<p>কোনো সম্পর্কিত পণ্য পাওয়া যায়নি।</p>";
+      return;
+    }
+
+    grid.innerHTML = related.slice(0, 6).map(p => {
+      const img = (p.images && p.images[0]) ? p.images[0] : "";
+      const reg = p.regularPrice || 0;
+      const disc = p.discountPrice || null;
+      let priceHtml = `৳${reg}`;
+      if (disc && disc > 0 && disc < reg) {
+        priceHtml = `<span style="text-decoration:line-through;color:#999;">৳${reg}</span> ৳${disc}`;
+      }
+      return `
+        <a href="product.html?id=${p.id}" class="card" style="text-decoration:none; color:inherit;">
+          <img src="${img}" alt="${p.title||''}" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px;">
+          <div style="padding:6px 2px;">
+            <div style="font-size:14px; font-weight:bold;">${p.title||''}</div>
+            <div style="font-size:14px;">${priceHtml}</div>
+          </div>
+        </a>
+      `;
+    }).join("");
+  } catch (e) {
+    grid.innerHTML = "<p>সম্পর্কিত পণ্য লোড করা যায়নি।</p>";
+  }
+}
   
   let images = [];
   if (selectedColor && selectedColor.images && selectedColor.images.length > 0) {
