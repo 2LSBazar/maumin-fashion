@@ -541,3 +541,16 @@ loadProducts();
 loadBanners();
 loadOrders();
 loadBkashSettings();
+
+window.updateOrderStatus = async (docId, newStatus) => {
+  await db.collection("orders").doc(docId).update({ status: newStatus });
+  renderOrders(); // আবার লিস্ট লোড হবে
+  alert("স্ট্যাটাস আপডেট: " + newStatus);
+};
+
+<div style="margin-top:6px;">
+  <button onclick="updateOrderStatus('${doc.id}','pending')" style="font-size:12px;padding:2px 6px;">Pending</button>
+  <button onclick="updateOrderStatus('${doc.id}','processing')" style="font-size:12px;padding:2px 6px;">Processing</button>
+  <button onclick="updateOrderStatus('${doc.id}','delivery')" style="font-size:12px;padding:2px 6px;">Delivery</button>
+</div>
+
