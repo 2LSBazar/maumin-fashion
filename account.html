@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>আমার একাউন্ট - Maumin Fashion</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.acc-box{max-width:400px; margin:30px auto; padding:0 16px;}
+.acc-box input{width:100%; padding:12px; margin:8px 0; border-radius:8px; border:1px solid #ccc; box-sizing:border-box; font-size:16px;}
+.acc-box button{width:100%; padding:14px; background:#111; color:#fff; border:none; border-radius:8px; font-size:16px; font-weight:bold; margin-top:8px;}
+.acc-box .alt-btn{background:#fff; color:#111; border:1px solid #ccc;}
+</style>
+</head>
+<body>
+
+<header style="padding:12px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #ddd;">
+  <a href="index.html" style="font-size:20px; text-decoration:none;">←</a>
+  <h1 style="margin:0; font-size:18px;">আমার একাউন্ট</h1>
+</header>
+
+<div class="acc-box">
+
+  <div id="loggedOutView">
+    <h2 id="formTitle">লগইন করুন</h2>
+    <input type="text" id="accName" placeholder="আপনার নাম" style="display:none;">
+    <input type="tel" id="accPhone" placeholder="মোবাইল নাম্বার (017...)">
+    <button id="loginBtn" onclick="doLogin()">লগইন করুন</button>
+    <button id="toggleRegisterBtn" class="alt-btn" onclick="toggleRegister()">নতুন একাউন্ট খুলুন</button>
+  </div>
+
+  <div id="loggedInView" style="display:none;">
+    <h2>স্বাগতম, <span id="welcomeName"></span>!</h2>
+    <p>ফোন নাম্বার: <span id="welcomePhone"></span></p>
+    <button onclick="logoutAcc()" class="alt-btn">লগআউট করুন</button>
+    <h3 style="margin-top:24px;">আমার অর্ডারসমূহ</h3>
+    <div id="myOrdersList">লোড হচ্ছে...</div>
+  </div>
+
+</div>
+
+<script type="module">
+import { db } from "./js/firebase-config.js";
+
+let isRegisterMode = false;
+
+window.toggleRegister = () => {
+  isRegisterMode = !isRegisterMode;
+  document.getElementById("accName").style.display = isRegisterMode ? "block" : "none";
+  document.getElementById("formTitle").innerText = isRegisterMode ? "নতুন একাউন্ট খুলুন" : "লগইন করুন";
+  document.getElementById("loginBtn").innerText = isRegisterMode ? "একাউন্ট খুলুন" : "লগইন করুন";
+  document.getElementById("toggleRegisterBtn").innerText = isRegisterMode ? "লগইন করুন" : "নতুন একাউন্ট খুলুন";
+};
+
+window.doLogin = async () => {
+  const phone = document.getElementById("accPhone").value.trim();
+  const name = document.getElementById("accName").value.trim();
+
+  if (!phone) return alert("মোবাইল নাম্বার লিখুন");
+
+  if (isRegisterMode) {
+    if (!name) return alert("নাম লিখুন");
+    // check if phone already registered
+    const existing = await db.collection("customers").where("phone","==",phone).limit(1).get();
+    if (!existing.empty) {
+      alert("এই নাম্বার দিয়ে আগেই একাউন্ট আছে। লগইন করুন।");
+      return;
+    }
+    await db.collection("customers").add({ name, phone, createdAt: new Date() });
+    localStorage.setItem("mauminCustomer", JSON.stringify({ name, phone }));
+    showLoggedIn(name, phone);
+  } else {
+    const snap = await db.collection("customers").where("phone","==",phone).limit(1).get();
+    if (snap.empty) {
+      alert("এই নাম্বারে কোনো একাউন্ট পাওয়া যায়নি। নতুন একাউন্ট খুলুন।");
+      return;
+    }
+    const d = snap.docs[0].data();
+    localStorage.setItem("mauminCustomer", JSON.stringify({ name: d.name, phone: d.phone }));
+    showLoggedIn(d.name, d.phone);
+  }
+};
+
+window.logoutAcc = () => {
+  localStorage.removeItem("mauminCustomer");
+  document.getElementById("loggedOutView").style.display = "block";
+  document.getElementById("loggedInView").style.display = "none";
+};
+
+function showLoggedIn(name, phone) {
+  document.getElementById("loggedOutView").style.display = "none";
+  document.getElementById("loggedInView").style.display = "block";
+  document.getElementById("welcomeName").innerText = name;
+  document.getElementById("welcomePhone").innerText = phone;
+  loadMyOrders(phone);
+}
+
+async function loadMyOrders(phone) {
+  const box = document.getElementById("myOrdersList");
+  try {
+    const snap = await db.collection("orders").where("customerPhone","==",phone).get();
+    if (snap.empty) {
+      box.innerHTML = "<p>কোনো অর্ডার নেই।</p>";
+      return;
+    }
+    let html = "";
+    snap.forEach(doc => {
+      const d = doc.data();
+      html += `<div style="padding:10px; border-bottom:1px solid #eee;">
+        <strong>${d.productTitle||''}</strong><br>
+        অর্ডার আইডি: ${d.orderId||''}<br>
+        স্ট্যাটাস: ${d.status||'pending'}
+      </div>`;
+    });
+    box.innerHTML = html;
+  } catch(e) {
+    box.innerHTML = "<p>লোড করা যায়নি। (Firestore index লাগতে পারে)</p>";
+  }
+}
+
+window.onload = () => {
+  const saved = JSON.parse(localStorage.getItem("mauminCustomer") || "null");
+  if (saved) showLoggedIn(saved.name, saved.phone);
+};
+</script>
+
+</body>
+</html>
