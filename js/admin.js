@@ -1,556 +1,533 @@
 import { db, auth } from "./firebase-config.js";
 import { SITE_CONFIG } from "./site-config.js";
-import {
-  collection, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc,
-  query, orderBy, serverTimestamp, setDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import {
-  onAuthStateChanged, signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// ---------- Auth চেক ----------
-onAuthStateChanged(auth, user => {
-  if(!user) window.location.href = "admin-login.html";
+let categories = [];
+let products = [];
+let editingProductId = null;
+let productImages = [];
+let colorData = [];
+let sizeData = [];
+let savingInProgress = false;
+let bkashQrUrl = "";
+
+// ---------- AUTH CHECK ----------
+auth.onAuthStateChanged((user) => {
+  if (!user) {
+    window.location.href = "admin-login.html";
+  }
 });
 
-document.getElementById("logoutBtn").onclick = async () => {
-  await signOut(auth);
-  window.location.href = "admin-login.html";
+document.getElementById("logoutBtn").onclick = () => {
+  auth.signOut().then(() => window.location.href = "admin-login.html");
 };
 
-// ---------- ট্যাব সুইচ ----------
-document.querySelectorAll(".atab").forEach(t => {
-  t.onclick = () => {
-    document.querySelectorAll(".atab").forEach(x => x.classList.remove("active"));
-    t.classList.add("active");
-    document.querySelectorAll(".tab-body").forEach(b => b.style.display = "none");
-    document.getElementById("tab-" + t.dataset.tab).style.display = "block";
+// ---------- TABS ----------
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
   };
 });
 
-// ---------- Cloudinary আপলোড ----------
-async function uploadImage(file){
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("upload_preset", SITE_CONFIG.cloudinaryUploadPreset);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${SITE_CONFIG.cloudinaryCloudName}/image/upload`,
-    { method: "POST", body: fd }
-  );
+// ---------- CLOUDINARY UPLOAD HELPER ----------
+async function uploadToCloudinary(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", SITE_CONFIG.cloudinaryUploadPreset);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${SITE_CONFIG.cloudinaryCloudName}/image/upload`, {
+    method: "POST",
+    body: formData
+  });
   const data = await res.json();
-  if(!data.secure_url) throw new Error("আপলোড ব্যর্থ");
   return data.secure_url;
 }
 
-// ---------- ক্যাটাগরি ----------
-let categories = [];
-
-async function loadCategories(){
-  const snap = await getDocs(collection(db, "categories"));
-  categories = [];
-  snap.forEach(d => categories.push({ id: d.id, name: d.data().name }));
-  renderCatList();
-  fillCatDropdown();
+// ---------- WHATSAPP LINK HELPER ----------
+function whatsappLink(phone, text) {
+  let clean = (phone || "").replace(/\D/g, "");
+  if (clean.startsWith("0")) clean = "88" + clean;
+  if (!clean.startsWith("88")) clean = "88" + clean;
+  return `https://wa.me/${clean}?text=${encodeURIComponent(text)}`;
 }
 
-function renderCatList(){
-  const list = document.getElementById("catList");
-  list.innerHTML = "";
-  if(!categories.length){
-    list.innerHTML = `<p class="empty-msg">কোনো ক্যাটাগরি নেই। উপরে নাম লিখে যোগ করুন।</p>`;
+function formatDate(ts) {
+  try {
+    if (ts && ts.toDate) return ts.toDate().toLocaleString("bn-BD");
+    if (ts instanceof Date) return ts.toLocaleString("bn-BD");
+    return "";
+  } catch (e) { return ""; }
+}
+
+// ================= CATEGORIES =================
+async function loadCategories() {
+  const snap = await db.collection("categories").get();
+  categories = [];
+  snap.forEach(doc => categories.push({ id: doc.id, ...doc.data() }));
+  renderCategoriesTab();
+}
+
+function renderCategoriesTab() {
+  const box = document.getElementById("categoriesList");
+  if (categories.length === 0) {
+    box.innerHTML = "<p>কোনো ক্যাটাগরি নেই।</p>";
     return;
   }
-  categories.forEach(c => {
-    const row = document.createElement("div");
-    row.className = "list-row";
-    row.innerHTML = `<span>${c.name}</span>`;
-    const del = document.createElement("button");
-    del.textContent = "🗑 মুছুন";
-    del.className = "del-btn";
-    del.onclick = async () => {
-      if(!confirm(`"${c.name}" ক্যাটাগরি মুছবেন? (প্রোডাক্টগুলো থেকে যাবে)`)) return;
-      await deleteDoc(doc(db, "categories", c.id));
-      loadCategories();
-    };
-    row.appendChild(del);
-    list.appendChild(row);
-  });
+  box.innerHTML = categories.map(c => `
+    <div class="list-row">
+      <div style="flex:1;">${c.name}</div>
+      <button class="btn-sm btn-red" onclick="deleteCategory('${c.id}')">মুছুন</button>
+    </div>
+  `).join("");
 }
 
-function fillCatDropdown(){
-  const sel = document.getElementById("fCategory");
-  sel.innerHTML = `<option value="">-- ক্যাটাগরি সিলেক্ট করুন --</option>`;
-  categories.forEach(c => {
-    const o = document.createElement("option");
-    o.value = c.id;
-    o.textContent = c.name;
-    sel.appendChild(o);
-  });
+function renderCategoryCheckboxes(selectedIds = []) {
+  const box = document.getElementById("pCategoryBox");
+  if (categories.length === 0) {
+    box.innerHTML = "<p style='font-size:13px;color:#888;'>আগে ক্যাটাগরি ট্যাবে গিয়ে ক্যাটাগরি যোগ করুন।</p>";
+    return;
+  }
+  box.innerHTML = categories.map(c => `
+    <label>
+      <input type="checkbox" class="pCatCheck" value="${c.id}" ${selectedIds.includes(c.id) ? "checked" : ""}>
+      ${c.name}
+    </label>
+  `).join("");
 }
 
-document.getElementById("addCatBtn").onclick = async () => {
-  const name = document.getElementById("newCatName").value.trim();
-  if(!name){ alert("ক্যাটাগরির নাম লিখুন"); return; }
-  const id = name.toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36);
-  await setDoc(doc(db, "categories", id), { name, createdAt: serverTimestamp() });
-  document.getElementById("newCatName").value = "";
+document.getElementById("addCategoryBtn").onclick = async () => {
+  const input = document.getElementById("newCategoryInput");
+  const name = input.value.trim();
+  if (!name) return alert("ক্যাটাগরির নাম লিখুন");
+  const id = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\u0980-\u09FF-]/g, "");
+  await db.collection("categories").doc(id || Date.now().toString()).set({ name });
+  input.value = "";
   loadCategories();
 };
 
-// ---------- ব্যানার ----------
-async function loadBanners(){
-  const s = await getDoc(doc(db, "settings", "homepage"));
-  const banners = (s.exists() && s.data().bannerImages) ? s.data().bannerImages : [];
-  renderBannerList(banners);
-}
-
-function renderBannerList(banners){
-  const list = document.getElementById("bannerList");
-  list.innerHTML = "";
-  banners.forEach((url, i) => {
-    const wrap = document.createElement("div");
-    wrap.style.position = "relative";
-    wrap.innerHTML = `<img src="${url}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;">`;
-    const del = document.createElement("button");
-    del.textContent = "✕";
-    del.style.cssText = "position:absolute;top:-6px;right:-6px;background:#c0392b;color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;";
-    del.onclick = async () => {
-      if(!confirm("এই ব্যানার মুছবেন?")) return;
-      banners.splice(i, 1);
-      await setDoc(doc(db, "settings", "homepage"), { bannerImages: banners });
-      loadBanners();
-    };
-    wrap.appendChild(del);
-    list.appendChild(wrap);
-  });
-}
-
-document.getElementById("bannerInput").onchange = async (e) => {
-  const files = [...e.target.files];
-  if(!files.length) return;
-  const status = document.getElementById("bannerUploadStatus");
-  const s = await getDoc(doc(db, "settings", "homepage"));
-  const banners = (s.exists() && s.data().bannerImages) ? s.data().bannerImages : [];
-
-  for(let i = 0; i < files.length; i++){
-    status.textContent = `আপলোড হচ্ছে ${i+1}/${files.length}...`;
-    try{
-      const url = await uploadImage(files[i]);
-      banners.push(url);
-    }catch(err){
-      status.textContent = "কিছু ছবি আপলোড হয়নি, আবার চেষ্টা করুন";
-    }
-  }
-  await setDoc(doc(db, "settings", "homepage"), { bannerImages: banners });
-  status.textContent = "✅ আপলোড শেষ!";
-  document.getElementById("bannerInput").value = "";
-  loadBanners();
+window.deleteCategory = async (id) => {
+  if (!confirm("এই ক্যাটাগরি মুছে ফেলতে চান?")) return;
+  await db.collection("categories").doc(id).delete();
+  loadCategories();
 };
 
-// ---------- প্রোডাক্ট লিস্ট ----------
-let allProducts = [];
-
-async function loadProducts(){
-  const snap = await getDocs(collection(db, "products"));
-  allProducts = [];
-  snap.forEach(d => allProducts.push({ id: d.id, ...d.data() }));
-  renderAdminProducts();
+// ================= PRODUCTS =================
+async function loadProducts() {
+  const snap = await db.collection("products").get();
+  products = [];
+  snap.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+  renderProductsList();
 }
 
-function renderAdminProducts(){
-  const q = document.getElementById("adminProductSearch").value.toLowerCase();
-  const list = document.getElementById("adminProductList");
-  const filtered = allProducts.filter(p => p.title.toLowerCase().includes(q));
-
-  list.innerHTML = "";
-  if(!filtered.length){
-    list.innerHTML = `<p class="empty-msg">কোনো প্রোডাক্ট নেই</p>`;
+function renderProductsList(filter = "") {
+  const box = document.getElementById("productsList");
+  let list = products;
+  if (filter) {
+    list = products.filter(p => (p.title || "").toLowerCase().includes(filter.toLowerCase()));
+  }
+  if (list.length === 0) {
+    box.innerHTML = "<p>কোনো পণ্য পাওয়া যায়নি।</p>";
     return;
   }
-
-  filtered.forEach(p => {
-    const row = document.createElement("div");
-    row.className = "list-row";
-    const img = (p.images && p.images[0]) || "assets/logo.png";
-    const catName = categories.find(c => c.id === p.categoryId)?.name || "";
-    row.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;">
-        <img src="${img}" style="width:50px;height:50px;object-fit:cover;border-radius:8px;">
-        <div>
-          <b>${p.title}</b><br>
-          <small style="color:var(--gray);">${catName} | ৳${p.discountPrice || p.regularPrice}</small>
-        </div>
-      </div>`;
-    const edit = document.createElement("button");
-    edit.textContent = "✏️ এডিট";
-    edit.className = "edit-btn";
-    edit.onclick = () => openProductForm(p);
-    const del = document.createElement("button");
-    del.textContent = "🗑";
-    del.className = "del-btn";
-    del.onclick = async () => {
-      if(!confirm(`"${p.title}" মুছে ফেলবেন?`)) return;
-      await deleteDoc(doc(db, "products", p.id));
-      loadProducts();
-    };
-    row.appendChild(edit);
-    row.appendChild(del);
-    list.appendChild(row);
-  });
+  box.innerHTML = list.map(p => `
+    <div class="list-row">
+      <img src="${(p.images && p.images[0]) || ''}" alt="">
+      <div style="flex:1;">
+        <strong>${p.title || ''}</strong><br>
+        <span>৳${p.regularPrice || 0} ${p.discountPrice ? ('/ ৳' + p.discountPrice) : ''}</span>
+      </div>
+      <div>
+        <button class="btn-sm btn-gray" onclick="editProduct('${p.id}')">এডিট</button>
+        <button class="btn-sm btn-red" onclick="deleteProduct('${p.id}')">মুছুন</button>
+      </div>
+    </div>
+  `).join("");
 }
 
-document.getElementById("adminProductSearch").addEventListener("input", renderAdminProducts);
-
-// ---------- প্রোডাক্ট ফর্ম ----------
-const pModal = document.getElementById("pFormModal");
-let mainImages = [];
-let editingId = null;
-let colorData = [];
-let sizeData = [];
-let savingInProgress = false;   // ⬅️ ডুপ্লিকেট সেভ বন্ধ করার জন্য
-
-document.getElementById("addProductBtn").onclick = () => openProductForm(null);
-document.getElementById("closePForm").onclick = () => pModal.classList.remove("show");
-
-function openProductForm(p){
-  editingId = p ? p.id : null;
-  document.getElementById("pFormTitle").textContent = p ? "প্রোডাক্ট এডিট করুন" : "নতুন প্রোডাক্ট";
-  document.getElementById("fTitle").value = p?.title || "";
-  document.getElementById("fCategory").value = p?.categoryId || "";
-  document.getElementById("fRegPrice").value = p?.regularPrice || "";
-  document.getElementById("fDiscPrice").value = p?.discountPrice || "";
-  document.getElementById("fDesc").value = p?.description || "";
-  document.getElementById("fCod").checked = p ? !!p.codAvailable : true;
-  document.getElementById("discPreview").textContent = "";
-  document.getElementById("uploadStatus").textContent = "";
-
-  mainImages = p ? [...(p.images || [])] : [];
-  colorData = p ? JSON.parse(JSON.stringify(p.colors || [])) : [];
-  sizeData = p ? JSON.parse(JSON.stringify(p.sizes || [])) : [];
-
-  renderMainThumbs();
-  renderColorRows();
-  renderSizeRows();
-  pModal.classList.add("show");
-}
-
-document.getElementById("fDiscPrice").addEventListener("input", () => {
-  const reg = parseFloat(document.getElementById("fRegPrice").value);
-  const disc = parseFloat(document.getElementById("fDiscPrice").value);
-  const el = document.getElementById("discPreview");
-  if(reg && disc && disc < reg){
-    el.textContent = `ডিসকাউন্ট: ${Math.round(((reg - disc) / reg) * 100)}% ছাড়`;
-  } else el.textContent = "";
+document.getElementById("productSearchInput").addEventListener("input", (e) => {
+  renderProductsList(e.target.value);
 });
 
-document.getElementById("fImages").onchange = async (e) => {
-  const files = [...e.target.files];
-  const status = document.getElementById("uploadStatus");
-  for(let i = 0; i < files.length; i++){
-    status.textContent = `ছবি আপলোড হচ্ছে ${i+1}/${files.length}...`;
-    try{
-      mainImages.push(await uploadImage(files[i]));
-      renderMainThumbs();
-    }catch(err){
-      alert("একটি ছবি আপলোড হয়নি");
-    }
-  }
-  status.textContent = "";
-  e.target.value = "";
+window.deleteProduct = async (id) => {
+  if (!confirm("এই পণ্য মুছে ফেলতে চান?")) return;
+  await db.collection("products").doc(id).delete();
+  loadProducts();
 };
 
-function renderMainThumbs(){
-  const box = document.getElementById("mainImgThumbs");
-  box.innerHTML = "";
-  mainImages.forEach((url, i) => {
-    const w = document.createElement("div");
-    w.style.position = "relative";
-    w.innerHTML = `<img src="${url}" class="thumb">`;
-    const del = document.createElement("button");
-    del.textContent = "✕";
-    del.style.cssText = "position:absolute;top:-6px;right:-6px;background:#c0392b;color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:11px;";
-    del.onclick = () => { mainImages.splice(i, 1); renderMainThumbs(); };
-    w.appendChild(del);
-    box.appendChild(w);
+window.editProduct = (id) => {
+  const p = products.find(x => x.id === id);
+  if (p) openProductModal(p);
+};
+
+document.getElementById("addProductBtn").onclick = () => openProductModal(null);
+document.getElementById("closeProductModalBtn").onclick = () => closeProductModal();
+
+function openProductModal(product) {
+  editingProductId = product ? product.id : null;
+  document.getElementById("productModalTitle").innerText = product ? "পণ্য এডিট করুন" : "নতুন পণ্য";
+  document.getElementById("pTitle").value = product ? (product.title || "") : "";
+  document.getElementById("pRegPrice").value = product ? (product.regularPrice || "") : "";
+  document.getElementById("pDiscPrice").value = product ? (product.discountPrice || "") : "";
+  document.getElementById("pCod").checked = product ? (product.codAvailable !== false) : true;
+  document.getElementById("pDescription").value = product ? (product.description || "") : "";
+  document.getElementById("pDiscPreview").innerText = "";
+
+  productImages = product && product.images ? [...product.images] : [];
+  colorData = product && product.colors ? JSON.parse(JSON.stringify(product.colors)) : [];
+  sizeData = product && product.sizes ? JSON.parse(JSON.stringify(product.sizes)) : [];
+
+  const selectedCats = product && product.categories && product.categories.length > 0
+    ? product.categories
+    : (product && product.category ? [product.category] : []);
+
+  renderCategoryCheckboxes(selectedCats);
+  renderProductImagesPreview();
+  renderColorRows();
+  renderSizeRows();
+  updateDiscPreview();
+
+  document.getElementById("productModal").classList.add("show");
+}
+
+function closeProductModal() {
+  document.getElementById("productModal").classList.remove("show");
+}
+
+function updateDiscPreview() {
+  const reg = parseFloat(document.getElementById("pRegPrice").value) || 0;
+  const disc = parseFloat(document.getElementById("pDiscPrice").value) || 0;
+  const preview = document.getElementById("pDiscPreview");
+  if (reg > 0 && disc > 0 && disc < reg) {
+    const pct = Math.round(((reg - disc) / reg) * 100);
+    preview.innerText = `${pct}% ছাড়`;
+  } else {
+    preview.innerText = "";
+  }
+}
+document.getElementById("pRegPrice").addEventListener("input", updateDiscPreview);
+document.getElementById("pDiscPrice").addEventListener("input", updateDiscPreview);
+
+// ---------- PRODUCT MAIN IMAGES ----------
+document.getElementById("pImagesInput").addEventListener("change", async (e) => {
+  const files = Array.from(e.target.files);
+  for (const file of files) {
+    const url = await uploadToCloudinary(file);
+    productImages.push(url);
+  }
+  renderProductImagesPreview();
+  e.target.value = "";
+});
+
+function renderProductImagesPreview() {
+  const box = document.getElementById("pImagesPreview");
+  box.innerHTML = productImages.map((url, i) => `
+    <div style="position:relative;">
+      <img src="${url}">
+      <button onclick="removeProductImage(${i})" style="position:absolute; top:-6px; right:-6px; background:#dc3545; color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:11px;">✕</button>
+    </div>
+  `).join("");
+}
+
+window.removeProductImage = (i) => {
+  productImages.splice(i, 1);
+  renderProductImagesPreview();
+};
+
+// ---------- COLOR ROWS ----------
+function renderColorRows() {
+  const box = document.getElementById("colorRowsContainer");
+  box.innerHTML = colorData.map((c, i) => `
+    <div class="color-row-box">
+      <input type="text" placeholder="রং এর নাম" value="${c.name || ''}" data-ci="${i}" class="colorName">
+      <input type="color" value="${c.hex || '#000000'}" data-ci="${i}" class="colorHex" style="width:100%; height:40px;">
+      <input type="number" placeholder="দাম (অপশনাল)" value="${c.price || ''}" data-ci="${i}" class="colorPrice">
+      <input type="number" placeholder="ডিসকাউন্ট দাম" value="${c.discountPrice || ''}" data-ci="${i}" class="colorDisc">
+      <input type="file" accept="image/*" multiple class="colorImgInput" data-ci="${i}">
+      <div class="img-thumb-row">
+        ${(c.images || []).map((img, ii) => `
+          <div style="position:relative;">
+            <img src="${img}">
+            <button class="del-btn" data-ci="${i}" data-ii="${ii}" style="position:absolute; top:-6px; right:-6px; background:#dc3545; color:#fff; border:none; border-radius:50%; width:18px; height:18px; font-size:10px;">✕</button>
+          </div>
+        `).join("")}
+      </div>
+      <button class="btn-sm btn-red del-btn" data-ci="${i}">এই রংটি মুছুন</button>
+    </div>
+  `).join("");
+
+  box.querySelectorAll(".colorName").forEach(inp => {
+    inp.oninput = () => { colorData[inp.dataset.ci].name = inp.value; };
+  });
+  box.querySelectorAll(".colorHex").forEach(inp => {
+    inp.oninput = () => { colorData[inp.dataset.ci].hex = inp.value; };
+  });
+  box.querySelectorAll(".colorPrice").forEach(inp => {
+    inp.oninput = () => { colorData[inp.dataset.ci].price = inp.value; };
+  });
+  box.querySelectorAll(".colorDisc").forEach(inp => {
+    inp.oninput = () => { colorData[inp.dataset.ci].discountPrice = inp.value; };
+  });
+  box.querySelectorAll(".colorImgInput").forEach(inp => {
+    inp.onchange = async (e) => {
+      const ci = e.target.dataset.ci;
+      const files = Array.from(e.target.files);
+      for (const file of files) {
+        const url = await uploadToCloudinary(file);
+        if (!colorData[ci].images) colorData[ci].images = [];
+        colorData[ci].images.push(url);
+      }
+      renderColorRows();
+    };
+  });
+  box.querySelectorAll(".del-btn[data-ci][data-ii]").forEach(btn => {
+    btn.onclick = () => {
+      const ci = btn.dataset.ci, ii = btn.dataset.ii;
+      colorData[ci].images.splice(ii, 1);
+      renderColorRows();
+    };
+  });
+  box.querySelectorAll(".del-btn[data-ci]:not([data-ii])").forEach(btn => {
+    btn.onclick = () => {
+      colorData.splice(btn.dataset.ci, 1);
+      renderColorRows();
+    };
   });
 }
 
-// ---------- কালার (এখন দামসহ) ----------
 document.getElementById("addColorBtn").onclick = () => {
   colorData.push({ name: "", hex: "#000000", images: [], price: "", discountPrice: "" });
   renderColorRows();
 };
 
-function renderColorRows(){
-  const box = document.getElementById("colorRows");
-  box.innerHTML = "";
-  colorData.forEach((c, i) => {
-    const row = document.createElement("div");
-    row.className = "dyn-row";
-    row.innerHTML = `
-      <input type="color" value="${c.hex}" data-ci="${i}" class="colorPicker" style="width:44px;height:44px;border:none;cursor:pointer;background:none;">
-      <input type="text" placeholder="কালারের নাম" value="${c.name}" data-ci="${i}" class="colorName" style="flex:1;min-width:100px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-      <input type="number" placeholder="দাম (অপশনাল)" value="${c.price || ''}" data-ci="${i}" class="colorPrice" style="width:95px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-      <input type="number" placeholder="ডিসকাউন্ট" value="${c.discountPrice || ''}" data-ci="${i}" class="colorDisc" style="width:95px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-      <label class="small-btn" style="cursor:pointer;">📸 ছবি
-        <input type="file" accept="image/*" multiple data-ci="${i}" class="colorImgs" style="display:none;">
-      </label>
-      <button type="button" class="del-btn" data-ci="${i}">✕</button>
-      <div class="thumb-row" data-ci="${i}" style="width:100%;"></div>`;
-    box.appendChild(row);
-  });
+// ---------- SIZE ROWS ----------
+function renderSizeRows() {
+  const box = document.getElementById("sizeRowsContainer");
+  box.innerHTML = sizeData.map((s, i) => `
+    <div class="size-row-box">
+      <input type="text" placeholder="সাইজের নাম (যেমন M, L, XL)" value="${s.name || ''}" data-si="${i}" class="sizeName">
+      <input type="number" placeholder="দাম (অপশনাল)" value="${s.price || ''}" data-si="${i}" class="sizePrice">
+      <input type="number" placeholder="ডিসকাউন্ট দাম" value="${s.discountPrice || ''}" data-si="${i}" class="sizeDisc">
+      <button class="btn-sm btn-red del-btn" data-si="${i}">এই সাইজ মুছুন</button>
+    </div>
+  `).join("");
 
-  box.querySelectorAll(".colorPicker").forEach(inp => inp.onchange = e => {
-    colorData[e.target.dataset.ci].hex = e.target.value;
+  box.querySelectorAll(".sizeName").forEach(inp => {
+    inp.oninput = () => { sizeData[inp.dataset.si].name = inp.value; };
   });
-  box.querySelectorAll(".colorName").forEach(inp => inp.oninput = e => {
-    colorData[e.target.dataset.ci].name = e.target.value;
+  box.querySelectorAll(".sizePrice").forEach(inp => {
+    inp.oninput = () => { sizeData[inp.dataset.si].price = inp.value; };
   });
-  box.querySelectorAll(".colorPrice").forEach(inp => inp.oninput = e => {
-    colorData[e.target.dataset.ci].price = parseFloat(e.target.value) || "";
+  box.querySelectorAll(".sizeDisc").forEach(inp => {
+    inp.oninput = () => { sizeData[inp.dataset.si].discountPrice = inp.value; };
   });
-  box.querySelectorAll(".colorDisc").forEach(inp => inp.oninput = e => {
-    colorData[e.target.dataset.ci].discountPrice = parseFloat(e.target.value) || "";
-  });
-  box.querySelectorAll(".colorImgs").forEach(inp => inp.onchange = async e => {
-    const i = e.target.dataset.ci;
-    const files = [...e.target.files];
-    const status = document.getElementById("uploadStatus");
-    for(let f = 0; f < files.length; f++){
-      status.textContent = `কালারের ছবি আপলোড হচ্ছে ${f+1}/${files.length}...`;
-      try{
-        colorData[i].images.push(await uploadImage(files[f]));
-        renderColorRows();
-      }catch(err){ alert("ছবি আপলোড হয়নি"); }
-    }
-    status.textContent = "";
-  });
-  box.querySelectorAll(".del-btn[data-ci]").forEach(btn => btn.onclick = e => {
-    colorData.splice(e.target.dataset.ci, 1);
-    renderColorRows();
-  });
-  box.querySelectorAll(".thumb-row").forEach(tr => {
-    const i = tr.dataset.ci;
-    colorData[i].images.forEach((url, j) => {
-      const w = document.createElement("div");
-      w.style.position = "relative";
-      w.innerHTML = `<img src="${url}" class="thumb">`;
-      const del = document.createElement("button");
-      del.textContent = "✕";
-      del.style.cssText = "position:absolute;top:-6px;right:-6px;background:#c0392b;color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:11px;";
-      del.onclick = () => { colorData[i].images.splice(j, 1); renderColorRows(); };
-      w.appendChild(del);
-      tr.appendChild(w);
-    });
+  box.querySelectorAll(".del-btn[data-si]").forEach(btn => {
+    btn.onclick = () => {
+      sizeData.splice(btn.dataset.si, 1);
+      renderSizeRows();
+    };
   });
 }
 
-// সাইজ
 document.getElementById("addSizeBtn").onclick = () => {
   sizeData.push({ name: "", price: "", discountPrice: "" });
   renderSizeRows();
 };
 
-function renderSizeRows(){
-  const box = document.getElementById("sizeRows");
-  box.innerHTML = "";
-  sizeData.forEach((s, i) => {
-    const row = document.createElement("div");
-    row.className = "dyn-row";
-    row.innerHTML = `
-      <input type="text" placeholder="সাইজ (যেমন: 40)" value="${s.name}" data-si="${i}" class="sizeName" style="width:80px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-      <input type="number" placeholder="দাম" value="${s.price}" data-si="${i}" class="sizePrice" style="width:90px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-      <input type="number" placeholder="ডিসকাউন্ট" value="${s.discountPrice}" data-si="${i}" class="sizeDisc" style="width:100px;padding:10px;border:1px solid #ddd;border-radius:8px;">
-      <button type="button" class="del-btn" data-si="${i}">✕</button>`;
-    box.appendChild(row);
-  });
-  box.querySelectorAll(".sizeName").forEach(inp => inp.oninput = e => sizeData[e.target.dataset.si].name = e.target.value);
-  box.querySelectorAll(".sizePrice").forEach(inp => inp.oninput = e => sizeData[e.target.dataset.si].price = parseFloat(e.target.value) || "");
-  box.querySelectorAll(".sizeDisc").forEach(inp => inp.oninput = e => sizeData[e.target.dataset.si].discountPrice = parseFloat(e.target.value) || "");
-  box.querySelectorAll(".del-btn[data-si]").forEach(btn => btn.onclick = e => {
-    sizeData.splice(e.target.dataset.si, 1);
-    renderSizeRows();
-  });
-}
-
-// ---------- সেভ (ডুপ্লিকেট ফিক্সসহ) ----------
+// ---------- SAVE PRODUCT ----------
 document.getElementById("saveProductBtn").onclick = async () => {
-  if(savingInProgress) return;   // ⬅️ আগে থেকে সেভ হচ্ছে থাকলে আটকে দেয়
+  if (savingInProgress) return;
 
-  const title = document.getElementById("fTitle").value.trim();
-  const categoryId = document.getElementById("fCategory").value;
-  const regPrice = parseFloat(document.getElementById("fRegPrice").value);
-  const discPrice = parseFloat(document.getElementById("fDiscPrice").value);
-  const description = document.getElementById("fDesc").value.trim();
-  const codAvailable = document.getElementById("fCod").checked;
+  const title = document.getElementById("pTitle").value.trim();
+  const regPrice = parseFloat(document.getElementById("pRegPrice").value) || 0;
+  const discPrice = parseFloat(document.getElementById("pDiscPrice").value) || null;
+  const codAvailable = document.getElementById("pCod").checked;
+  const description = document.getElementById("pDescription").value.trim();
 
-  if(!title){ alert("প্রোডাক্টের নাম দিন"); return; }
-  if(!categoryId){ alert("ক্যাটাগরি সিলেক্ট করুন"); return; }
-  if(!regPrice){ alert("রেগুলার দাম দিন"); return; }
-  if(!mainImages.length){ alert("অন্তত একটি ছবি আপলোড করুন"); return; }
+  const selectedCategories = Array.from(document.querySelectorAll(".pCatCheck:checked")).map(cb => cb.value);
 
-  savingInProgress = true;
-  const btn = document.getElementById("saveProductBtn");
-  btn.disabled = true;
-  btn.textContent = "সেভ হচ্ছে...";
+  if (!title) return alert("পণ্যের নাম লিখুন");
+  if (!regPrice) return alert("নিয়মিত দাম লিখুন");
+  if (selectedCategories.length === 0) return alert("অন্তত একটি ক্যাটাগরি বাছাই করুন");
+  if (productImages.length === 0) return alert("অন্তত একটি ছবি আপলোড করুন");
 
   const cleanedColors = colorData
-    .filter(c => c.name)
+    .filter(c => c.name && c.name.trim())
     .map(c => ({
-      name: c.name, hex: c.hex, images: c.images,
-      price: c.price || null, discountPrice: c.discountPrice || null
+      name: c.name.trim(),
+      hex: c.hex || "#000000",
+      images: c.images || [],
+      price: c.price || null,
+      discountPrice: c.discountPrice || null
     }));
+
   const cleanedSizes = sizeData
-    .filter(s => s.name && s.price)
-    .map(s => ({ name: s.name, price: s.price, discountPrice: s.discountPrice || null }));
+    .filter(s => s.name && s.name.trim())
+    .map(s => ({
+      name: s.name.trim(),
+      price: s.price || null,
+      discountPrice: s.discountPrice || null
+    }));
 
-  const catName = categories.find(c => c.id === categoryId)?.name || "";
+  const btn = document.getElementById("saveProductBtn");
+  savingInProgress = true;
+  btn.disabled = true;
+  btn.innerText = "সেভ হচ্ছে...";
 
-  const data = {
-    title, categoryId, categoryName: catName,
-    regularPrice: regPrice,
-    discountPrice: (discPrice && discPrice < regPrice) ? discPrice : null,
-    images: mainImages,
-    colors: cleanedColors,
-    sizes: cleanedSizes,
-    description, codAvailable
-  };
+  try {
+    const data = {
+      title,
+      regularPrice: regPrice,
+      discountPrice: discPrice,
+      codAvailable,
+      description,
+      categories: selectedCategories,
+      images: productImages,
+      colors: cleanedColors,
+      sizes: cleanedSizes,
+      updatedAt: new Date()
+    };
 
-  try{
-    if(editingId){
-      await updateDoc(doc(db, "products", editingId), data);
+    if (editingProductId) {
+      await db.collection("products").doc(editingProductId).update(data);
     } else {
-      data.createdAt = serverTimestamp();
-      await addDoc(collection(db, "products"), data);
+      data.createdAt = new Date();
+      await db.collection("products").add(data);
     }
-    pModal.classList.remove("show");
+
+    closeProductModal();
     loadProducts();
-  }catch(err){
-    alert("সেভ হয়নি, আবার চেষ্টা করুন");
-    console.error(err);
-  }finally{
+  } catch (e) {
+    alert("সেভ করতে সমস্যা হয়েছে: " + e.message);
+  } finally {
     savingInProgress = false;
     btn.disabled = false;
-    btn.textContent = "💾 সেভ করুন";
+    btn.innerText = "সেভ করুন";
   }
 };
 
-// ---------- অর্ডার ----------
-async function loadOrders(){
-  const list = document.getElementById("ordersList");
-  const snap = await getDocs(query(collection(db, "orders"), orderBy("createdAt", "desc")));
-  list.innerHTML = "";
+// ================= ORDERS =================
+async function loadOrders() {
+  const box = document.getElementById("ordersList");
+  box.innerHTML = "লোড হচ্ছে...";
+  try {
+    const snap = await db.collection("orders").orderBy("createdAt", "desc").get();
+    const orders = [];
+    snap.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+    renderOrdersList(orders);
+  } catch (e) {
+    box.innerHTML = "<p>অর্ডার লোড করা যায়নি: " + e.message + "</p>";
+  }
+}
 
-  if(snap.empty){
-    list.innerHTML = `<p class="empty-msg">এখনো কোনো অর্ডার আসেনি</p>`;
+function renderOrdersList(orders) {
+  const box = document.getElementById("ordersList");
+  if (orders.length === 0) {
+    box.innerHTML = "<p>কোনো অর্ডার নেই।</p>";
     return;
   }
-
-  snap.forEach(d => {
-    const o = d.data();
-    const date = o.createdAt?.toDate?.().toLocaleString("bn-BD") || "";
-    const payMethod = o.paymentMethod === "cod" ? "💰 ক্যাশ অন ডেলিভারি" : "📱 বিকাশ";
-    const isPending = o.status === "pending";
-
-    const card = document.createElement("div");
-    card.className = "order-card" + (isPending ? " pending" : "");
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <b>${o.productTitle}</b>
-        <span class="status-badge ${o.status}">${o.status === "pending" ? "⏳ নতুন" : o.status === "done" ? "✅ সম্পন্ন" : o.status}</span>
+  box.innerHTML = orders.map(o => {
+    const statusColor = o.status === "delivery" ? "btn-green" : o.status === "processing" ? "btn-blue" : "btn-yellow";
+    const waText = `আসসালামু আলাইকুম ${o.customerName}, আপনার অর্ডার (${o.orderId}) সম্পর্কে যোগাযোগ করছি।`;
+    return `
+    <div class="list-row" style="flex-direction:column; align-items:stretch;">
+      <div><strong>${o.productTitle || ''}</strong> | রং: ${o.color || '-'} | সাইজ: ${o.size || '-'}</div>
+      <div>দাম: ৳${o.price || 0} ${o.discountPrice ? '(ছাড়ে ৳' + o.discountPrice + ')' : ''} | ডেলিভারি: ৳${o.deliveryCharge || 0}</div>
+      <div>পেমেন্ট: ${o.paymentMethod || ''} | অর্ডার আইডি: ${o.orderId || ''}</div>
+      <div>কাস্টমার: ${o.customerName || ''} | ফোন: ${o.customerPhone || ''}</div>
+      <div>ঠিকানা: ${o.address || ''}</div>
+      <div style="font-size:12px; color:#888;">${formatDate(o.createdAt)}</div>
+      <div style="margin-top:8px;">
+        <button class="btn-sm ${o.status==='pending' || !o.status ? 'btn-yellow' : 'btn-gray'}" onclick="updateOrderStatus('${o.id}','pending')">Pending</button>
+        <button class="btn-sm ${o.status==='processing' ? 'btn-blue' : 'btn-gray'}" onclick="updateOrderStatus('${o.id}','processing')">Processing</button>
+        <button class="btn-sm ${o.status==='delivery' ? 'btn-green' : 'btn-gray'}" onclick="updateOrderStatus('${o.id}','delivery')">Delivery</button>
+        <a class="btn-sm btn-dark" style="text-decoration:none;" href="${whatsappLink(o.customerPhone, waText)}" target="_blank">WhatsApp</a>
+        <button class="btn-sm btn-red" onclick="deleteOrder('${o.id}')">মুছুন</button>
       </div>
-      ${o.color ? `<div>কালার: ${o.color}</div>` : ""}
-      ${o.size ? `<div>সাইজ: ${o.size}</div>` : ""}
-      <div>দাম: <b>৳${o.price}</b> | ${payMethod}</div>
-      <hr style="border:none;border-top:1px dashed #ddd;margin:8px 0;">
-      <div>👤 ${o.customerName} | 📞 <a href="tel:${o.customerPhone}">${o.customerPhone}</a></div>
-      <div style="color:var(--gray);font-size:13px;">📍 ${o.address}</div>
-      <div style="color:var(--gray);font-size:12px;margin-top:4px;">🕒 ${date}</div>
-      <a href="https://wa.me/${o.customerPhone.replace(/^0/, "880")}" target="_blank"
-         style="display:inline-block;margin-top:8px;font-size:13px;color:#25D366;font-weight:bold;">💬 WhatsApp এ মেসেজ দিন</a>`;
-
-    const doneBtn = document.createElement("button");
-    doneBtn.textContent = isPending ? "✅ সম্পন্ন করুন" : "↩️ পেন্ডিং করুন";
-    doneBtn.className = "edit-btn";
-    doneBtn.onclick = async () => {
-      await updateDoc(doc(db, "orders", d.id), { status: isPending ? "done" : "pending" });
-      loadOrders();
-    };
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "🗑";
-    delBtn.className = "del-btn";
-    delBtn.onclick = async () => {
-      if(!confirm("এই অর্ডার মুছবেন?")) return;
-      await deleteDoc(doc(db, "orders", d.id));
-      loadOrders();
-    };
-    const btnRow = document.createElement("div");
-    btnRow.style.cssText = "display:flex;gap:8px;margin-top:8px;";
-    btnRow.appendChild(doneBtn);
-    btnRow.appendChild(delBtn);
-    card.appendChild(btnRow);
-
-    list.appendChild(card);
-  });
+    </div>
+    `;
+  }).join("");
 }
-
-// ---------- বিকাশ সেটিংস ----------
-async function loadBkashSettings(){
-  const s = await getDoc(doc(db, "settings", "bkash"));
-  if(s.exists()){
-    const d = s.data();
-    document.getElementById("bkashNumber").value = d.number || "";
-    if(d.qrImage){
-      const prev = document.getElementById("bkashQRPreview");
-      prev.src = d.qrImage;
-      prev.style.display = "block";
-    }
-  }
-}
-
-let newQrUrl = null;
-document.getElementById("bkashQRInput").onchange = async (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  const status = document.getElementById("settingsStatus");
-  status.textContent = "QR আপলোড হচ্ছে...";
-  try{
-    newQrUrl = await uploadImage(file);
-    const prev = document.getElementById("bkashQRPreview");
-    prev.src = newQrUrl;
-    prev.style.display = "block";
-    status.textContent = "";
-  }catch(err){
-    status.textContent = "আপলোড ব্যর্থ, আবার চেষ্টা করুন";
-  }
-};
-
-document.getElementById("saveSettingsBtn").onclick = async () => {
-  const number = document.getElementById("bkashNumber").value.trim();
-  const s = await getDoc(doc(db, "settings", "bkash"));
-  const qrImage = newQrUrl || (s.exists() ? s.data().qrImage : null);
-  await setDoc(doc(db, "settings", "bkash"), { number, qrImage: qrImage || null });
-  const st = document.getElementById("settingsStatus");
-  st.textContent = "✅ সেভ হয়ে গেছে!";
-  setTimeout(() => st.textContent = "", 3000);
-};
-
-// ---------- শুরু ----------
-loadCategories();
-loadProducts();
-loadBanners();
-loadOrders();
-loadBkashSettings();
 
 window.updateOrderStatus = async (docId, newStatus) => {
   await db.collection("orders").doc(docId).update({ status: newStatus });
-  renderOrders(); // আবার লিস্ট লোড হবে
-  alert("স্ট্যাটাস আপডেট: " + newStatus);
+  loadOrders();
 };
 
-<div style="margin-top:6px;">
-  <button onclick="updateOrderStatus('${doc.id}','pending')" style="font-size:12px;padding:2px 6px;">Pending</button>
-  <button onclick="updateOrderStatus('${doc.id}','processing')" style="font-size:12px;padding:2px 6px;">Processing</button>
-  <button onclick="updateOrderStatus('${doc.id}','delivery')" style="font-size:12px;padding:2px 6px;">Delivery</button>
-</div>
+window.deleteOrder = async (docId) => {
+  if (!confirm("এই অর্ডার মুছে ফেলতে চান?")) return;
+  await db.collection("orders").doc(docId).delete();
+  loadOrders();
+};
 
+// ================= BANNERS =================
+async function loadBanners() {
+  const box = document.getElementById("bannersList");
+  box.innerHTML = "লোড হচ্ছে...";
+  const snap = await db.collection("settings").doc("homepage").get();
+  const images = snap.exists ? (snap.data().bannerImages || []) : [];
+  if (images.length === 0) {
+    box.innerHTML = "<p>কোনো ব্যানার নেই।</p>";
+    return;
+  }
+  box.innerHTML = images.map((url, i) => `
+    <div style="position:relative;">
+      <img src="${url}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
+      <button onclick="deleteBanner(${i})" style="position:absolute; top:-6px; right:-6px; background:#dc3545; color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:11px;">✕</button>
+    </div>
+  `).join("");
+}
+
+document.getElementById("uploadBannerBtn").onclick = async () => {
+  const input = document.getElementById("bannerUploadInput");
+  const files = Array.from(input.files);
+  if (files.length === 0) return alert("ছবি বাছাই করুন");
+
+  const btn = document.getElementById("uploadBannerBtn");
+  btn.disabled = true;
+  btn.innerText = "আপলোড হচ্ছে...";
+
+  try {
+    const urls = [];
+    for (const file of files) {
+      const url = await uploadToCloudinary(file);
+      urls.push(url);
+    }
+    const ref = db.collection("settings").doc("homepage");
+    const snap = await ref.get();
+    const existing = snap.exists ? (snap.data().bannerImages || []) : [];
+    await ref.set({ bannerImages: [...existing, ...urls] }, { merge: true });
+    input.value = "";
+    loadBanners();
+  } catch (e) {
+    alert("আপলোড সমস্যা: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "আপলোড করুন";
+  }
+};
+
+window.deleteBanner = async (index) => {
+  if (!confirm("এই ব্যানার মুছে ফেলতে চান?")) return;
+  const ref = db.collection("settings").doc("homepage");
+  const snap = await ref.get();
+  const existing = snap.exists ? (snap.data().bannerImages || []) : [];
+  existing.splice(index, 1);
+  await ref.set({ bannerImages: existing }, { merge: true });
+  loadBanners();
+};
+
+// ================= SETTINGS (bKash) =================
+async function loadBkashSettings() {
+  const snap = await db.collection("settings").doc("bkash").get();
+  if (snap.exists) {
+    const d = snap.data();
+    document.getElementById("bkashNumberInput").value = d.number || "";
+    bkashQrUrl = d.qrUrl || "";
+    if (bkashQrUrl) {
+      document.getElementById("bkashQrPreview").innerHTML = `<img src="${bkashQrUrl}" style="width:100px; margin-top:8px; border-radius:8px;">`;
+    }
+  }
+}
+
+document.getElementB
