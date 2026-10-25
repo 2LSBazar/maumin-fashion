@@ -139,3 +139,10 @@
 
 <button id="addCartBtn" class="btn-secondary" onclick="addCartNow()">🛒 কার্টে যোগ করুন</button>
 
+<script type="module">
+  import { addToCart } from "./js/cart.js";
+  window.addCartNow = () => {
+    // product, selectedColor, selectedSize global variables are already set by product.js
+    addToCart(product, selectedColor, selectedSize);
+  };
+</script>
