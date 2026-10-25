@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>কার্ট - Maumin Fashion</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.cart-item{display:flex; gap:12px; padding:12px; border-bottom:1px solid #eee; align-items:center;}
+.cart-item img{width:80px; height:80px; object-fit:cover; border-radius:8px;}
+</style>
+</head>
+<body>
+
+<header style="padding:12px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #ddd;">
+  <a href="index.html" style="font-size:20px;">←</a>
+  <h1 style="margin:0; font-size:18px;">কার্ট</h1>
+</header>
+
+<div id="cartEmpty" style="text-align:center; padding:40px;">কার্ট খালি। <a href="index.html">দোকানে যান</a></div>
+<div id="cartList"></div>
+<div id="cartActions" style="padding:16px; display:none;">
+  <div style="font-weight:bold; font-size:18px; text-align:right;">মোট: ৳<span id="cartTotal">0</span></div>
+  <button onclick="clearCart()" style="width:100%; padding:12px; margin-top:10px; background:#fff; border:1px solid #ccc; border-radius:8px;">কার্ট খালি করুন</button>
+  <a href="index.html" style="display:block; text-align:center; padding:12px; background:#111; color:#fff; border-radius:8px; margin-top:10px; text-decoration:none;">আরও পণ্য দেখুন</a>
+</div>
+
+<script>
+function loadCart(){
+  const data = JSON.parse(localStorage.getItem("mauminCart") || "[]");
+  const list = document.getElementById("cartList");
+  const empty = document.getElementById("cartEmpty");
+  const actions = document.getElementById("cartActions");
+  if(data.length===0){
+    list.innerHTML=""; empty.style.display="block"; actions.style.display="none"; return;
+  }
+  empty.style.display="none"; actions.style.display="block";
+  list.innerHTML = data.map((item,i)=>`
+    <div class="cart-item">
+      <img src="${item.img||''}" alt="">
+      <div style="flex:1;">
+        <h3 style="margin:0 0 4px;">${item.title||''}</h3>
+        <p style="margin:0; font-size:14px; color:#555;">রং:${item.color||'-'} | সাইজ:${item.size||'-'}</p>
+        <p style="margin:4px 0 0; font-weight:bold;">৳${item.price||0}</p>
+      </div>
+      <button onclick="removeCart(${i})" style="padding:6px 10px;">❌</button>
+    </div>
+  `).join("");
+  const total = data.reduce((s,i)=>s+(Number(i.price)||0),0);
+  document.getElementById("cartTotal").innerText = total;
+}
+
+function removeCart(i){
+  const data = JSON.parse(localStorage.getItem("mauminCart") || "[]");
+  data.splice(i,1);
+  localStorage.setItem("mauminCart", JSON.stringify(data));
+  loadCart();
+}
+
+function clearCart(){
+  localStorage.removeItem("mauminCart");
+  loadCart();
+}
+
+window.onload = loadCart;
+</script>
+
+</body>
+</html>
