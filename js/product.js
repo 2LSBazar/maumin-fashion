@@ -14,16 +14,13 @@ let bkashSettings = null;
 let sliderTimer = null;
 let currentSlide = 0;
 
-// WhatsApp link
 document.getElementById("whatsappFloat").href = `https://wa.me/${SITE_CONFIG.whatsappNumber}`;
 
-// EmailJS init (কী বসানো থাকলে)
 const emailConfigured = !SITE_CONFIG.emailjsPublicKey.startsWith("YOUR_");
 if (emailConfigured && window.emailjs) {
   emailjs.init({ publicKey: SITE_CONFIG.emailjsPublicKey });
 }
 
-// ---------- স্লাইডার ----------
 function renderSlider(images, autoSlide){
   clearInterval(sliderTimer);
   const slider = document.getElementById("pSlider");
@@ -59,7 +56,6 @@ function renderSlider(images, autoSlide){
   }
 }
 
-// ডিফল্ট অবস্থায়: মেইন ছবি + সব কালারের ছবি একসাথে ঘুরবে
 function allDefaultImages(){
   const set = [...(product.images || [])];
   (product.colors || []).forEach(c =>
@@ -68,10 +64,13 @@ function allDefaultImages(){
   return set.length ? set : ["assets/logo.png"];
 }
 
-// ---------- দাম ----------
+// ---------- দাম (এখন কালার ও সাইজ দুটোই চেক করে) ----------
 function currentPrice(){
-  if(selectedSize){
+  if(selectedSize && selectedSize.price){
     return { reg: selectedSize.price, disc: selectedSize.discountPrice };
+  }
+  if(selectedColor && selectedColor.price){
+    return { reg: selectedColor.price, disc: selectedColor.discountPrice };
   }
   return { reg: product.regularPrice, disc: product.discountPrice };
 }
@@ -85,14 +84,12 @@ function renderPrice(){
     : `<span class="disc">৳${p.reg}</span>`;
 }
 
-// ---------- প্রোডাক্ট রেন্ডার ----------
 function renderProduct(){
   document.getElementById("pTitle").textContent = product.title;
 
-  renderSlider(allDefaultImages(), true);  // ডিফল্টে সব ছবি ঘুরবে
+  renderSlider(allDefaultImages(), true);
   renderPrice();
 
-  // কালার
   if(product.colors && product.colors.length){
     document.getElementById("colorSection").style.display = "block";
     const row = document.getElementById("colorRow");
@@ -105,14 +102,13 @@ function renderProduct(){
         document.querySelectorAll(".color-swatch").forEach(x => x.classList.remove("selected"));
         sw.classList.add("selected");
         selectedColor = c;
-        // কালার সিলেক্ট হলে ওই কালারের ছবি স্থির অবস্থায় দেখাবে
         renderSlider((c.images && c.images.length) ? c.images : allDefaultImages(), false);
+        renderPrice();   // ⬅️ কালার সিলেক্ট করলে দাম আপডেট হবে
       };
       row.appendChild(sw);
     });
   }
 
-  // সাইজ
   if(product.sizes && product.sizes.length){
     document.getElementById("sizeSection").style.display = "block";
     const row = document.getElementById("sizeRow");
@@ -124,13 +120,12 @@ function renderProduct(){
         document.querySelectorAll(".size-btn").forEach(x => x.classList.remove("selected"));
         btn.classList.add("selected");
         selectedSize = s;
-        renderPrice();  // সাইজ অনুযায়ী দাম বদলাবে
+        renderPrice();
       };
       row.appendChild(btn);
     });
   }
 
-  // পেমেন্ট ব্যাজ
   const badges = document.getElementById("payBadges");
   badges.innerHTML = product.codAvailable
     ? `<span class="pay-badge">✅ ক্যাশ অন ডেলিভারি</span><span class="pay-badge">📱 বিকাশ</span>`
@@ -139,7 +134,6 @@ function renderProduct(){
   document.getElementById("pDesc").textContent = product.description || "বিবরণ নেই।";
 }
 
-// ---------- বিকাশ সেটিংস লোড ----------
 async function loadBkash(){
   try{
     const s = await getDoc(doc(db, "settings", "bkash"));
@@ -147,7 +141,6 @@ async function loadBkash(){
   }catch(e){}
 }
 
-// ---------- অর্ডার মডাল ----------
 const modal = document.getElementById("orderModal");
 
 document.getElementById("orderBtn").onclick = () => {
@@ -163,7 +156,6 @@ document.getElementById("orderBtn").onclick = () => {
     ${selectedSize ? `সাইজ: ${selectedSize.name} | ` : ""}
     দাম: <b>৳${finalPrice}</b>`;
 
-  // COD না থাকলে COD অপশন লুকাবে, বিকাশ অটো-সিলেক্ট
   const codOpt = document.getElementById("codOpt");
   codOpt.style.display = product.codAvailable ? "block" : "none";
   selectPayment(product.codAvailable ? null : "bkash");
@@ -189,7 +181,6 @@ function selectPayment(method){
 document.getElementById("codOpt").onclick = () => selectPayment("cod");
 document.getElementById("bkashOpt").onclick = () => selectPayment("bkash");
 
-// ---------- অর্ডার কনফার্ম ----------
 document.getElementById("confirmOrderBtn").onclick = async () => {
   const name = document.getElementById("cName").value.trim();
   const phone = document.getElementById("cPhone").value.trim();
@@ -225,7 +216,6 @@ document.getElementById("confirmOrderBtn").onclick = async () => {
       createdAt: serverTimestamp()
     });
 
-    // Gmail নোটিফিকেশন (সেটআপ থাকলে)
     if(emailConfigured && window.emailjs){
       try{
         await emailjs.send(SITE_CONFIG.emailjsServiceId, SITE_CONFIG.emailjsTemplateId, {
@@ -258,7 +248,6 @@ document.getElementById("successCloseBtn").onclick = () => {
   window.location.href = "index.html";
 };
 
-// ---------- শুরু ----------
 if(!productId){
   window.location.href = "index.html";
 } else {
@@ -274,4 +263,4 @@ async function loadProduct(){
   }
   product = { id: snap.id, ...snap.data() };
   renderProduct();
-    }
+}
