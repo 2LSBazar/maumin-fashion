@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - Maumin Fashion</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <img src="assets/logo.png" class="logo" alt="logo">
+  <span class="brand">Admin Panel</span>
+  <button id="logoutBtn" style="margin-left:auto;background:#c0392b;color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;">লগআউট</button>
+</header>
+
+<!-- Tabs -->
+<div class="admin-tabs">
+  <button class="atab active" data-tab="orders">📋 অর্ডার</button>
+  <button class="atab" data-tab="products">👕 প্রোডাক্ট</button>
+  <button class="atab" data-tab="categories">🏷️ ক্যাটাগরি</button>
+  <button class="atab" data-tab="banners">🖼️ ব্যানার</button>
+  <button class="atab" data-tab="settings">⚙️ সেটিংস</button>
+</div>
+
+<!-- ORDERS TAB -->
+<div class="tab-body" id="tab-orders">
+  <div id="ordersList"><p class="empty-msg">লোড হচ্ছে...</p></div>
+</div>
+
+<!-- PRODUCTS TAB -->
+<div class="tab-body" id="tab-products" style="display:none">
+  <div style="display:flex;gap:10px;padding:12px;">
+    <input type="text" id="adminProductSearch" placeholder="প্রোডাক্ট খুঁজুন..." style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;">
+    <button id="addProductBtn" style="background:var(--navy);color:var(--gold);border:none;padding:10px 16px;border-radius:8px;cursor:pointer;white-space:nowrap;">+ নতুন</button>
+  </div>
+  <div id="adminProductList"></div>
+</div>
+
+<!-- CATEGORIES TAB -->
+<div class="tab-body" id="tab-categories" style="display:none">
+  <div style="display:flex;gap:10px;padding:12px;">
+    <input type="text" id="newCatName" placeholder="নতুন ক্যাটাগরির নাম" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;">
+    <button id="addCatBtn" style="background:var(--navy);color:var(--gold);border:none;padding:10px 16px;border-radius:8px;cursor:pointer;">+ যোগ করুন</button>
+  </div>
+  <div id="catList"></div>
+</div>
+
+<!-- BANNERS TAB -->
+<div class="tab-body" id="tab-banners" style="display:none">
+  <div style="padding:12px;">
+    <p style="color:var(--gray);font-size:13px;margin-bottom:8px;">স্কয়ার সাইজের ছবি দিন (১:১)। একাধিক ব্যানার দিলে সেগুলো ঘুরে ঘুরে দেখাবে।</p>
+    <input type="file" id="bannerInput" accept="image/*" multiple style="margin-bottom:10px;">
+    <div id="bannerUploadStatus" style="font-size:13px;color:var(--gray);"></div>
+  </div>
+  <div id="bannerList" style="display:flex;flex-wrap:wrap;gap:10px;padding:12px;"></div>
+</div>
+
+<!-- SETTINGS TAB -->
+<div class="tab-body" id="tab-settings" style="display:none">
+  <div style="padding:16px;max-width:500px;margin:0 auto;">
+    <h3 style="color:var(--navy);margin-bottom:12px;">বিকাশ সেটিংস</h3>
+    <div class="form-group">
+      <label>বিকাশ নাম্বার</label>
+      <input type="text" id="bkashNumber" placeholder="01XXXXXXXXX">
+    </div>
+    <div class="form-group">
+      <label>বিকাশ QR কোডের ছবি</label>
+      <input type="file" id="bkashQRInput" accept="image/*">
+      <img id="bkashQRPreview" src="" alt="" style="width:150px;height:150px;object-fit:contain;margin-top:8px;display:none;border:1px solid #eee;border-radius:8px;">
+    </div>
+    <button id="saveSettingsBtn" class="full-btn">সেভ করুন</button>
+    <p id="settingsStatus" style="text-align:center;color:#2e7d32;font-size:13px;margin-top:8px;"></p>
+  </div>
+</div>
+
+<!-- PRODUCT FORM MODAL -->
+<div id="pFormModal">
+  <div class="modal-box">
+    <button id="closePForm">✕</button>
+    <h3 id="pFormTitle">নতুন প্রোডাক্ট</h3>
+
+    <div class="form-group">
+      <label>প্রোডাক্টের নাম *</label>
+      <input type="text" id="fTitle" placeholder="যেমন: এক্সক্লুসিভ কাবলি পাঞ্জাবি">
+    </div>
+
+    <div class="form-group">
+      <label>ক্যাটাগরি *</label>
+      <select id="fCategory" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
+        <option value="">-- ক্যাটাগরি সিলেক্ট করুন --</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>রেগুলার দাম (৳) *</label>
+      <input type="number" id="fRegPrice" placeholder="যেমন: 2500">
+    </div>
+
+    <div class="form-group">
+      <label>ডিসকাউন্ট দাম (৳) — না দিলে ডিসকাউন্ট হবে না</label>
+      <input type="number" id="fDiscPrice" placeholder="যেমন: 1999">
+      <p id="discPreview" style="font-size:13px;color:#c0392b;font-weight:bold;margin-top:4px;"></p>
+    </div>
+
+    <div class="form-group">
+      <label>মেইন ছবি (একাধিক সিলেক্ট করা যাবে) *</label>
+      <input type="file" id="fImages" accept="image/*" multiple>
+      <div class="thumb-row" id="mainImgThumbs"></div>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="fCod" checked style="transform:scale(1.3);margin-right:6px;">
+        ক্যাশ অন ডেলিভারি আছে (আনচেক করলে শুধু বিকাশে কিনতে পারবে)
+      </label>
+    </div>
+
+    <!-- COLORS -->
+    <div class="form-group">
+      <label>কালার (অপশনাল) — প্রতি কালারের আলাদা ছবি দেওয়া যাবে</label>
+      <div id="colorRows"></div>
+      <button type="button" id="addColorBtn" class="small-btn">+ কালার যোগ করুন</button>
+    </div>
+
+    <!-- SIZES -->
+    <div class="form-group">
+      <label>সাইজ (অপশনাল) — সাইজ অনুযায়ী আলাদা দাম দেওয়া যাবে</label>
+      <div id="sizeRows"></div>
+      <button type="button" id="addSizeBtn" class="small-btn">+ সাইজ যোগ করুন</button>
+    </div>
+
+    <div class="form-group">
+      <label>প্রোডাক্টের বিবরণ</label>
+      <textarea id="fDesc" rows="4" placeholder="কাপড়ের ধরন, মান ইত্যাদি লিখুন..." style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;"></textarea>
+    </div>
+
+    <p id="uploadStatus" style="font-size:13px;color:var(--gray);"></p>
+    <button id="saveProductBtn" class="full-btn">💾 সেভ করুন</button>
+  </div>
+</div>
+
+<script type="module" src="js/admin.js"></script>
+</body>
+  </html>
