@@ -508,3 +508,36 @@ async function loadBkashSettings(){
   }
 }
 
+let newQrUrl = null;
+document.getElementById("bkashQRInput").onchange = async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const status = document.getElementById("settingsStatus");
+  status.textContent = "QR আপলোড হচ্ছে...";
+  try{
+    newQrUrl = await uploadImage(file);
+    const prev = document.getElementById("bkashQRPreview");
+    prev.src = newQrUrl;
+    prev.style.display = "block";
+    status.textContent = "";
+  }catch(err){
+    status.textContent = "আপলোড ব্যর্থ, আবার চেষ্টা করুন";
+  }
+};
+
+document.getElementById("saveSettingsBtn").onclick = async () => {
+  const number = document.getElementById("bkashNumber").value.trim();
+  const s = await getDoc(doc(db, "settings", "bkash"));
+  const qrImage = newQrUrl || (s.exists() ? s.data().qrImage : null);
+  await setDoc(doc(db, "settings", "bkash"), { number, qrImage: qrImage || null });
+  const st = document.getElementById("settingsStatus");
+  st.textContent = "✅ সেভ হয়ে গেছে!";
+  setTimeout(() => st.textContent = "", 3000);
+};
+
+// ---------- শুরু ----------
+loadCategories();
+loadProducts();
+loadBanners();
+loadOrders();
+loadBkashSettings();
