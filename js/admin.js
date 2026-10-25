@@ -207,6 +207,7 @@ let mainImages = [];
 let editingId = null;
 let colorData = [];
 let sizeData = [];
+let savingInProgress = false;   // ⬅️ ডুপ্লিকেট সেভ বন্ধ করার জন্য
 
 document.getElementById("addProductBtn").onclick = () => openProductForm(null);
 document.getElementById("closePForm").onclick = () => pModal.classList.remove("show");
@@ -274,8 +275,9 @@ function renderMainThumbs(){
   });
 }
 
+// ---------- কালার (এখন দামসহ) ----------
 document.getElementById("addColorBtn").onclick = () => {
-  colorData.push({ name: "", hex: "#000000", images: [] });
+  colorData.push({ name: "", hex: "#000000", images: [], price: "", discountPrice: "" });
   renderColorRows();
 };
 
@@ -287,7 +289,9 @@ function renderColorRows(){
     row.className = "dyn-row";
     row.innerHTML = `
       <input type="color" value="${c.hex}" data-ci="${i}" class="colorPicker" style="width:44px;height:44px;border:none;cursor:pointer;background:none;">
-      <input type="text" placeholder="কালারের নাম (যেমন: লাল)" value="${c.name}" data-ci="${i}" class="colorName" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;">
+      <input type="text" placeholder="কালারের নাম" value="${c.name}" data-ci="${i}" class="colorName" style="flex:1;min-width:100px;padding:10px;border:1px solid #ddd;border-radius:8px;">
+      <input type="number" placeholder="দাম (অপশনাল)" value="${c.price || ''}" data-ci="${i}" class="colorPrice" style="width:95px;padding:10px;border:1px solid #ddd;border-radius:8px;">
+      <input type="number" placeholder="ডিসকাউন্ট" value="${c.discountPrice || ''}" data-ci="${i}" class="colorDisc" style="width:95px;padding:10px;border:1px solid #ddd;border-radius:8px;">
       <label class="small-btn" style="cursor:pointer;">📸 ছবি
         <input type="file" accept="image/*" multiple data-ci="${i}" class="colorImgs" style="display:none;">
       </label>
@@ -302,6 +306,12 @@ function renderColorRows(){
   box.querySelectorAll(".colorName").forEach(inp => inp.oninput = e => {
     colorData[e.target.dataset.ci].name = e.target.value;
   });
+  box.querySelectorAll(".colorPrice").forEach(inp => inp.oninput = e => {
+    colorData[e.target.dataset.ci].price = parseFloat(e.target.value) || "";
+  });
+  box.querySelectorAll(".colorDisc").forEach(inp => inp.oninput = e => {
+    colorData[e.target.dataset.ci].discountPrice = parseFloat(e.target.value) || "";
+  });
   box.querySelectorAll(".colorImgs").forEach(inp => inp.onchange = async e => {
     const i = e.target.dataset.ci;
     const files = [...e.target.files];
@@ -315,7 +325,7 @@ function renderColorRows(){
     }
     status.textContent = "";
   });
-  box.querySelectorAll(".del-btn").forEach(btn => btn.onclick = e => {
+  box.querySelectorAll(".del-btn[data-ci]").forEach(btn => btn.onclick = e => {
     colorData.splice(e.target.dataset.ci, 1);
     renderColorRows();
   });
@@ -335,6 +345,7 @@ function renderColorRows(){
   });
 }
 
+// সাইজ
 document.getElementById("addSizeBtn").onclick = () => {
   sizeData.push({ name: "", price: "", discountPrice: "" });
   renderSizeRows();
@@ -356,13 +367,16 @@ function renderSizeRows(){
   box.querySelectorAll(".sizeName").forEach(inp => inp.oninput = e => sizeData[e.target.dataset.si].name = e.target.value);
   box.querySelectorAll(".sizePrice").forEach(inp => inp.oninput = e => sizeData[e.target.dataset.si].price = parseFloat(e.target.value) || "");
   box.querySelectorAll(".sizeDisc").forEach(inp => inp.oninput = e => sizeData[e.target.dataset.si].discountPrice = parseFloat(e.target.value) || "");
-  box.querySelectorAll(".del-btn").forEach(btn => btn.onclick = e => {
+  box.querySelectorAll(".del-btn[data-si]").forEach(btn => btn.onclick = e => {
     sizeData.splice(e.target.dataset.si, 1);
     renderSizeRows();
   });
 }
 
+// ---------- সেভ (ডুপ্লিকেট ফিক্সসহ) ----------
 document.getElementById("saveProductBtn").onclick = async () => {
+  if(savingInProgress) return;   // ⬅️ আগে থেকে সেভ হচ্ছে থাকলে আটকে দেয়
+
   const title = document.getElementById("fTitle").value.trim();
   const categoryId = document.getElementById("fCategory").value;
   const regPrice = parseFloat(document.getElementById("fRegPrice").value);
@@ -375,9 +389,17 @@ document.getElementById("saveProductBtn").onclick = async () => {
   if(!regPrice){ alert("রেগুলার দাম দিন"); return; }
   if(!mainImages.length){ alert("অন্তত একটি ছবি আপলোড করুন"); return; }
 
+  savingInProgress = true;
+  const btn = document.getElementById("saveProductBtn");
+  btn.disabled = true;
+  btn.textContent = "সেভ হচ্ছে...";
+
   const cleanedColors = colorData
     .filter(c => c.name)
-    .map(c => ({ name: c.name, hex: c.hex, images: c.images }));
+    .map(c => ({
+      name: c.name, hex: c.hex, images: c.images,
+      price: c.price || null, discountPrice: c.discountPrice || null
+    }));
   const cleanedSizes = sizeData
     .filter(s => s.name && s.price)
     .map(s => ({ name: s.name, price: s.price, discountPrice: s.discountPrice || null }));
@@ -394,10 +416,6 @@ document.getElementById("saveProductBtn").onclick = async () => {
     description, codAvailable
   };
 
-  const btn = document.getElementById("saveProductBtn");
-  btn.disabled = true;
-  btn.textContent = "সেভ হচ্ছে...";
-
   try{
     if(editingId){
       await updateDoc(doc(db, "products", editingId), data);
@@ -410,10 +428,11 @@ document.getElementById("saveProductBtn").onclick = async () => {
   }catch(err){
     alert("সেভ হয়নি, আবার চেষ্টা করুন");
     console.error(err);
+  }finally{
+    savingInProgress = false;
+    btn.disabled = false;
+    btn.textContent = "💾 সেভ করুন";
   }
-
-  btn.disabled = false;
-  btn.textContent = "💾 সেভ করুন";
 };
 
 // ---------- অর্ডার ----------
@@ -489,36 +508,3 @@ async function loadBkashSettings(){
   }
 }
 
-let newQrUrl = null;
-document.getElementById("bkashQRInput").onchange = async (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  const status = document.getElementById("settingsStatus");
-  status.textContent = "QR আপলোড হচ্ছে...";
-  try{
-    newQrUrl = await uploadImage(file);
-    const prev = document.getElementById("bkashQRPreview");
-    prev.src = newQrUrl;
-    prev.style.display = "block";
-    status.textContent = "";
-  }catch(err){
-    status.textContent = "আপলোড ব্যর্থ, আবার চেষ্টা করুন";
-  }
-};
-
-document.getElementById("saveSettingsBtn").onclick = async () => {
-  const number = document.getElementById("bkashNumber").value.trim();
-  const s = await getDoc(doc(db, "settings", "bkash"));
-  const qrImage = newQrUrl || (s.exists() ? s.data().qrImage : null);
-  await setDoc(doc(db, "settings", "bkash"), { number, qrImage: qrImage || null });
-  const st = document.getElementById("settingsStatus");
-  st.textContent = "✅ সেভ হয়ে গেছে!";
-  setTimeout(() => st.textContent = "", 3000);
-};
-
-// ---------- শুরু ----------
-loadCategories();
-loadProducts();
-loadBanners();
-loadOrders();
-loadBkashSettings();
