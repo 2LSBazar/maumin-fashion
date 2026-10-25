@@ -29,7 +29,7 @@ document.querySelectorAll(".atab").forEach(t => {
 });
 
 // ---------- Cloudinary আপলোড ----------
-async function uploadImage(file, onProgress){
+async function uploadImage(file){
   const fd = new FormData();
   fd.append("file", file);
   fd.append("upload_preset", SITE_CONFIG.cloudinaryUploadPreset);
@@ -205,8 +205,8 @@ document.getElementById("adminProductSearch").addEventListener("input", renderAd
 const pModal = document.getElementById("pFormModal");
 let mainImages = [];
 let editingId = null;
-let colorData = [];   // {name, hex, images: []}
-let sizeData = [];    // {name, price, discountPrice}
+let colorData = [];
+let sizeData = [];
 
 document.getElementById("addProductBtn").onclick = () => openProductForm(null);
 document.getElementById("closePForm").onclick = () => pModal.classList.remove("show");
@@ -233,7 +233,6 @@ function openProductForm(p){
   pModal.classList.add("show");
 }
 
-// ডিসকাউন্ট % প্রিভিউ
 document.getElementById("fDiscPrice").addEventListener("input", () => {
   const reg = parseFloat(document.getElementById("fRegPrice").value);
   const disc = parseFloat(document.getElementById("fDiscPrice").value);
@@ -243,7 +242,6 @@ document.getElementById("fDiscPrice").addEventListener("input", () => {
   } else el.textContent = "";
 });
 
-// মেইন ছবি
 document.getElementById("fImages").onchange = async (e) => {
   const files = [...e.target.files];
   const status = document.getElementById("uploadStatus");
@@ -276,7 +274,6 @@ function renderMainThumbs(){
   });
 }
 
-// কালার রো
 document.getElementById("addColorBtn").onclick = () => {
   colorData.push({ name: "", hex: "#000000", images: [] });
   renderColorRows();
@@ -338,7 +335,6 @@ function renderColorRows(){
   });
 }
 
-// সাইজ রো
 document.getElementById("addSizeBtn").onclick = () => {
   sizeData.push({ name: "", price: "", discountPrice: "" });
   renderSizeRows();
@@ -366,7 +362,6 @@ function renderSizeRows(){
   });
 }
 
-// সেভ
 document.getElementById("saveProductBtn").onclick = async () => {
   const title = document.getElementById("fTitle").value.trim();
   const categoryId = document.getElementById("fCategory").value;
@@ -514,4 +509,16 @@ document.getElementById("bkashQRInput").onchange = async (e) => {
 document.getElementById("saveSettingsBtn").onclick = async () => {
   const number = document.getElementById("bkashNumber").value.trim();
   const s = await getDoc(doc(db, "settings", "bkash"));
-  const qrImage = newQrUrl || (s.exists() ? s.data().
+  const qrImage = newQrUrl || (s.exists() ? s.data().qrImage : null);
+  await setDoc(doc(db, "settings", "bkash"), { number, qrImage: qrImage || null });
+  const st = document.getElementById("settingsStatus");
+  st.textContent = "✅ সেভ হয়ে গেছে!";
+  setTimeout(() => st.textContent = "", 3000);
+};
+
+// ---------- শুরু ----------
+loadCategories();
+loadProducts();
+loadBanners();
+loadOrders();
+loadBkashSettings();
