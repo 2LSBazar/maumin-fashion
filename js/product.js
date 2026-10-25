@@ -275,9 +275,82 @@ document.getElementById("addCartBtn").onclick = () => {
   alert("কার্ট ফিচার скоро আসছে!");
 };
 
-function renderReviewList() {
+let selectedStars = 0;
+
+function setupStarPicker() {
+  const stars = document.querySelectorAll("#starPicker span");
+  stars.forEach(s => {
+    s.onclick = () => {
+      selectedStars = parseInt(s.dataset.val, 10);
+      stars.forEach(st => {
+        st.innerText = parseInt(st.dataset.val, 10) <= selectedStars ? "★" : "☆";
+      });
+    };
+  });
+}
+
+window.submitReview = async () => {
+  const name = document.getElementById("reviewName").value.trim();
+  const comment = document.getElementById("reviewComment").value.trim();
+  if (!name) return alert("নাম লিখুন");
+  if (selectedStars === 0) return alert("স্টার বাছাই করুন");
+  if (!comment) return alert("মতামত লিখুন");
+
+  try {
+    await db.collection("reviews").add({
+      productId: product.id,
+      name,
+      stars: selectedStars,
+      comment,
+      createdAt: new Date()
+    });
+    document.getElementById("reviewName").value = "";
+    document.getElementById("reviewComment").value = "";
+    selectedStars = 0;
+    document.querySelectorAll("#starPicker span").forEach(st => st.innerText = "☆");
+    alert("রিভিউ জমা হয়েছে! ধন্যবাদ।");
+    renderReviewList();
+  } catch (e) {
+    alert("রিভিউ জমা দিতে সমস্যা হয়েছে।");
+  }
+};
+
+async function renderReviewList() {
   const list = document.getElementById("reviewList");
-  list.innerHTML = "<p>এখনো কোনো রিভিউ নেই।</p>";
+  list.innerHTML = "লোড হচ্ছে...";
+  try {
+    const snap = await db.collection("reviews").where("productId","==",product.id).get();
+    if (snap.empty) {
+      list.innerHTML = "<p>এখনো কোনো রিভিউ নেই। প্রথম রিভিউ আপনিই দিন!</p>";
+      setupStarPicker();
+      return;
+    }
+    let totalStars = 0;
+    let html = "";
+    const reviews = [];
+    snap.forEach(doc => reviews.push(doc.data()));
+    reviews.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+
+    reviews.forEach(r => {
+      totalStars += r.stars || 0;
+      const starsText = "★".repeat(r.stars||0) + "☆".repeat(5-(r.stars||0));
+      html += `
+        <div style="padding:10px 0; border-bottom:1px solid #eee;">
+          <strong>${r.name}</strong>
+          <div style="color:#f5a623; font-size:18px;">${starsText}</div>
+          <p style="margin:4px 0 0; color:#555;">${r.comment}</p>
+        </div>
+      `;
+    });
+
+    const avg = (totalStars / reviews.length).toFixed(1);
+    html = `<div style="margin-bottom:10px; font-weight:bold;">গড় রেটিং: ${avg} ⭐ (${reviews.length} জন রিভিউ দিয়েছেন)</div>` + html;
+    list.innerHTML = html;
+    setupStarPicker();
+  } catch (e) {
+    list.innerHTML = "<p>রিভিউ লোড করা যায়নি।</p>";
+    setupStarPicker();
+  }
 }
 
 function renderRelated() {
