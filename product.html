@@ -3,107 +3,136 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>পণ্য - Maumin Fashion</title>
-<link rel="icon" href="assets/logo.png">
+<title>পণ্যের বিবরণ - Maumin Fashion</title>
 <link rel="stylesheet" href="css/style.css">
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
 
-<div id="overlay"></div>
-
-<header>
-  <button id="backBtn" onclick="history.back()" style="font-size:24px;background:none;border:none;color:white;cursor:pointer;">←</button>
-  <img src="assets/logo.png" class="logo" alt="logo">
-  <span class="brand">Maumin Fashion</span>
+<header class="top-header">
+  <button id="backBtn" class="icon-btn" onclick="history.back()">←</button>
+  <img src="assets/logo.png" class="logo-small" alt="Maumin Fashion">
+  <a href="track.html" class="track-link">📦 অর্ডার ট্র্যাক</a>
 </header>
 
-<!-- Image Slider -->
-<div class="p-slider" id="pSlider"></div>
+<div id="loadingBox" class="loading-box">লোড হচ্ছে...</div>
 
-<!-- Details -->
-<div class="p-details">
-  <h2 id="pTitle">লোড হচ্ছে...</h2>
-  <div class="price-big" id="pPrice"></div>
+<div id="productWrap" class="product-wrap" style="display:none;">
 
-  <div id="colorSection" style="display:none">
-    <h4>কালার সিলেক্ট করুন <span style="color:#c0392b">*</span></h4>
-    <div class="color-row" id="colorRow"></div>
+  <div class="slider-box">
+    <div id="sliderTrack" class="slider-track"></div>
+    <div id="sliderDots" class="slider-dots"></div>
   </div>
 
-  <div id="sizeSection" style="display:none">
-    <h4>সাইজ সিলেক্ট করুন <span style="color:#c0392b">*</span></h4>
-    <div class="size-row" id="sizeRow"></div>
+  <div class="product-info">
+    <h1 id="productTitle" class="product-title"></h1>
+
+    <div id="priceBox" class="price-big"></div>
+
+    <div class="section-block">
+      <div class="section-label">রং বাছাই করুন</div>
+      <div id="colorRow" class="color-row"></div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-label">সাইজ বাছাই করুন</div>
+      <div id="sizeRow" class="size-row"></div>
+    </div>
+
+    <div class="action-row">
+      <button id="addCartBtn" class="btn-secondary">🛒 কার্টে যোগ করুন</button>
+      <button id="orderBtn" class="btn-primary">এখনই অর্ডার করুন</button>
+    </div>
+
+    <div class="section-block">
+      <div class="section-label">বিবরণ</div>
+      <p id="productDesc" class="product-desc"></p>
+    </div>
+
+    <div class="pay-badges">
+      <span class="badge">💵 ক্যাশ অন ডেলিভারি</span>
+      <span class="badge">📱 বিকাশ পেমেন্ট</span>
+    </div>
+
+    <div class="section-block" id="reviewSection">
+      <div class="section-label">কাস্টমার রিভিউ ⭐</div>
+      <div id="reviewList" class="review-list"></div>
+    </div>
+
+    <div class="section-block" id="relatedSection">
+      <div class="section-label">আরও পছন্দ হতে পারে</div>
+      <div id="relatedGrid" class="product-grid"></div>
+    </div>
+
   </div>
-
-  <h4>পণ্যের বিবরণ:</h4>
-  <p id="pDesc"></p>
-
-  <div class="pay-badges" id="payBadges"></div>
-
-  <button id="orderBtn">🛒 অর্ডার করুন</button>
 </div>
 
 <!-- Order Modal -->
-<div id="orderModal">
+<div id="orderModal" class="modal-overlay">
   <div class="modal-box">
-    <button id="closeModal">✕</button>
-    <h3>অর্ডার করুন</h3>
+    <button id="closeModalBtn" class="modal-close">✕</button>
 
-    <div id="formView">
-      <div class="order-summary" id="orderSummary"></div>
+    <div id="orderFormView">
+      <h2>অর্ডার করুন</h2>
 
-      <div class="form-group">
-        <label>আপনার নাম *</label>
-        <input type="text" id="cName" placeholder="নাম লিখুন">
-      </div>
-      <div class="form-group">
-        <label>মোবাইল নাম্বার *</label>
-        <input type="tel" id="cPhone" placeholder="01XXXXXXXXX">
-      </div>
-      <div class="form-group">
-        <label>জেলা *</label>
-        <input type="text" id="cDistrict" placeholder="জেলা">
-      </div>
-      <div class="form-group">
-        <label>থানা *</label>
-        <input type="text" id="cThana" placeholder="থানা">
-      </div>
-      <div class="form-group">
-        <label>গ্রাম / এলাকা *</label>
-        <input type="text" id="cVillage" placeholder="গ্রাম বা এলাকা">
-      </div>
+      <label>আপনার নাম</label>
+      <input type="text" id="custName" placeholder="নাম লিখুন">
 
-      <h4>পেমেন্ট মাধ্যম:</h4>
-      <div class="pay-options">
-        <div class="pay-opt" id="codOpt">💰 ক্যাশ অন ডেলিভারি</div>
-        <div class="pay-opt" id="bkashOpt">📱 বিকাশ</div>
-      </div>
+      <label>মোবাইল নাম্বার</label>
+      <input type="tel" id="custPhone" placeholder="017XXXXXXXX">
 
-      <div id="bkashBox">
-        <p style="font-weight:bold;color:#e2136e;margin-bottom:6px;">বিকাশে টাকা পাঠান:</p>
-        <img id="bkashQR" src="" alt="bKash QR">
-        <p id="bkashNumber" style="margin-top:8px;font-weight:bold;"></p>
-        <p style="font-size:12px;color:var(--gray);margin-top:4px;">টাকা পাঠানোর পর নিচের বাটনে ক্লিক করুন</p>
+      <label>জেলা</label>
+      <input type="text" id="custDistrict" placeholder="জেলার নাম">
+
+      <label>থানা</label>
+      <input type="text" id="custThana" placeholder="থানার নাম">
+
+      <label>গ্রাম / এলাকা</label>
+      <input type="text" id="custVillage" placeholder="গ্রাম বা এলাকার নাম">
+
+      <label>ডেলিভারি এলাকা</label>
+      <div class="delivery-choice">
+        <label class="radio-label">
+          <input type="radio" name="deliveryZone" value="80" checked>
+          ঢাকার ভিতরে (৳৮০)
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="deliveryZone" value="130">
+          ঢাকার বাইরে (৳১৩০)
+        </label>
       </div>
 
-      <button id="confirmOrderBtn">✅ অর্ডার কনফার্ম করুন</button>
+      <label>পেমেন্ট মাধ্যম</label>
+      <div id="paymentChoice" class="payment-choice"></div>
+
+      <div id="bkashBox" class="bkash-box" style="display:none;">
+        <p>বিকাশ নাম্বারে সেন্ড মানি করুন:</p>
+        <p id="bkashNumberText" class="bkash-number"></p>
+        <img id="bkashQrImg" class="bkash-qr" alt="bKash QR">
+        <label>বিকাশ ট্রানজেকশন আইডি (ঐচ্ছিক)</label>
+        <input type="text" id="bkashTrxId" placeholder="ট্রানজেকশন আইডি">
+      </div>
+
+      <div id="orderSummaryBox" class="order-summary-box"></div>
+
+      <button id="submitOrderBtn" class="btn-primary full-width">অর্ডার কনফার্ম করুন</button>
     </div>
 
-    <div id="successView">
+    <div id="orderSuccessView" style="display:none;" class="success-view">
       <div class="success-icon">✅</div>
-      <h3 style="margin:10px 0;">অর্ডার সফল হয়েছে!</h3>
-      <p style="color:var(--gray);">আপনার অর্ডার আমরা পেয়ে গেছি। শীঘ্রই আপনাকে ফোনে যোগাযোগ করবো।</p>
-      <button id="successCloseBtn" style="margin-top:16px;padding:12px 30px;background:var(--navy);color:var(--gold);border:none;border-radius:8px;font-size:15px;cursor:pointer;">ঠিক আছে</button>
+      <h2>অর্ডার সফল হয়েছে!</h2>
+      <p>আপনার অর্ডার আইডি:</p>
+      <div id="generatedOrderId" class="order-id-box"></div>
+      <p class="success-note">এই আইডি দিয়ে আপনি অর্ডার স্ট্যাটাস ট্র্যাক করতে পারবেন।</p>
+      <a id="trackNowLink" href="track.html" class="btn-secondary full-width">এখনই ট্র্যাক করুন</a>
+      <button id="closeSuccessBtn" class="btn-primary full-width">ঠিক আছে</button>
     </div>
+
   </div>
 </div>
 
-<!-- Floating WhatsApp -->
-<a id="whatsappFloat" href="#" target="_blank">
-  <svg viewBox="0 0 32 32"><path d="M16 .4C7.4.4.4 7.4.4 16c0 2.8.7 5.5 2.1 7.9L.4 31.6l7.9-2.1c2.3 1.3 5 2 7.7 2 8.6 0 15.6-7 15.6-15.6S24.6.4 16 .4zm0 28.3c-2.4 0-4.8-.6-6.8-1.8l-.5-.3-4.7 1.2 1.3-4.6-.3-.5A12.6 12.6 0 1 1 28.6 16 12.6 12.6 0 0 1 16 28.7zm6.9-9.4c-.4-.2-2.2-1.1-2.5-1.2-.3-.1-.6-.2-.8.2-.2.4-.9 1.2-1.1 1.4-.2.2-.4.3-.8.1-.4-.2-1.6-.6-3-1.9-1.1-1-1.9-2.2-2.1-2.6-.2-.4 0-.6.2-.8.2-.2.4-.4.5-.6.2-.2.2-.4.3-.6.1-.2.1-.5 0-.7-.1-.2-.8-2-1.1-2.7-.3-.7-.6-.6-.8-.6h-.7c-.2 0-.6.1-.9.5-.3.4-1.2 1.2-1.2 2.9s1.2 3.4 1.4 3.6c.2.2 2.4 3.7 5.9 5.1.8.3 1.4.5 1.9.7.8.3 1.5.2 2.1.1.6-.1 2.2-.9 2.5-1.8.3-.9.3-1.6.2-1.8-.1-.2-.3-.3-.7-.5z"/></svg>
-</a>
+<a id="whatsappFloat" class="whatsapp-float" target="_blank">💬</a>
 
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <script type="module" src="js/product.js"></script>
 </body>
 </html>
