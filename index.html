@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maumin Fashion - ঘরে বসে অর্ডার করুন</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Splash Screen -->
+<div id="splash">
+  <img src="assets/logo.png" alt="Maumin Fashion">
+</div>
+
+<!-- Overlay for sidebar -->
+<div id="overlay"></div>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <h3>ক্যাটাগরি সমূহ</h3>
+  <ul id="sidebarCatList">
+    <li data-cat="all">সকল পণ্য</li>
+  </ul>
+</div>
+
+<!-- Header -->
+<header>
+  <button id="menuBtn">&#9776;</button>
+  <img src="assets/logo.png" class="logo" alt="logo">
+  <span class="brand">Maumin Fashion</span>
+  <input type="text" id="searchInput" placeholder="পণ্য খুঁজুন...">
+</header>
+
+<!-- Banner -->
+<div class="banner-wrap" id="bannerWrap"></div>
+
+<!-- Category chips -->
+<div class="cat-scroll" id="catScroll">
+  <div class="cat-chip active" data-cat="all">সকল</div>
+</div>
+
+<!-- Product Grid -->
+<div class="product-grid" id="productGrid">
+  <p class="empty-msg">লোড হচ্ছে...</p>
+</div>
+
+<!-- Floating WhatsApp -->
+<a id="whatsappFloat" href="#" target="_blank">
+  <svg viewBox="0 0 32 32"><path d="M16 .4C7.4.4.4 7.4.4 16c0 2.8.7 5.5 2.1 7.9L.4 31.6l7.9-2.1c2.3 1.3 5 2 7.7 2 8.6 0 15.6-7 15.6-15.6S24.6.4 16 .4zm0 28.3c-2.4 0-4.8-.6-6.8-1.8l-.5-.3-4.7 1.2 1.3-4.6-.3-.5A12.6 12.6 0 1 1 28.6 16 12.6 12.6 0 0 1 16 28.7zm6.9-9.4c-.4-.2-2.2-1.1-2.5-1.2-.3-.1-.6-.2-.8.2-.2.4-.9 1.2-1.1 1.4-.2.2-.4.3-.8.1-.4-.2-1.6-.6-3-1.9-1.1-1-1.9-2.2-2.1-2.6-.2-.4 0-.6.2-.8.2-.2.4-.4.5-.6.2-.2.2-.4.3-.6.1-.2.1-.5 0-.7-.1-.2-.8-2-1.1-2.7-.3-.7-.6-.6-.8-.6h-.7c-.2 0-.6.1-.9.5-.3.4-1.2 1.2-1.2 2.9s1.2 3.4 1.4 3.6c.2.2 2.4 3.7 5.9 5.1.8.3 1.4.5 1.9.7.8.3 1.5.2 2.1.1.6-.1 2.2-.9 2.5-1.8.3-.9.3-1.6.2-1.8-.1-.2-.3-.3-.7-.5z"/></svg>
+</a>
+
+<script type="module" src="js/home.js"></script>
+</body>
+</html>
